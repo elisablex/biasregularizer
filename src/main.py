@@ -105,12 +105,14 @@ def bestCut(graph):
     return list(sorted(leftHalf)), list(sorted(rightHalf))
 
 
+
 # function that returns df/dQ
-def model(P,Q,R):
-    print("Matrix norm")
-    print(2 * LA.norm(P.dot(Q.T) - R)) #scalar
-    #dfdQ = 2 * LA.norm(P.matmul(Q.T) - R) * Q - 2 * X * S.matmul(S.T) * Q
-    #return dfdQ
+def model(P,Q,R,S):
+
+    minterm = 2 * LA.norm(P.matmul(Q.T) - R) * Q
+    maxterm = 2 * R * S.matmul(S.T) * Q
+    dfdQ =  minterm - maxterm
+    return dfdQ
 
 def cutsizeregularization(graph):
     print()
@@ -135,6 +137,8 @@ if __name__ == '__main__':
     P = np.random.rand(N,K)
     Q = np.random.rand(M,K)
 
+    S = np.ones((M, M))
+    print(S)
 
     nP, nQ = matrix_factorization(R, P, Q, K)
 
@@ -145,4 +149,6 @@ if __name__ == '__main__':
     theBestCut = bestCut(weightedMatrix)
     print(theBestCut)
 
-    #model(P, Q, R)
+    dfdQ = model(P, Q, R, S)
+    print(dfdQ)
+
