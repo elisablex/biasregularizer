@@ -3,7 +3,6 @@
 # Nov 21 2017
 
 import numpy as np
-import networkx as nx
 from scipy.integrate import odeint
 import matplotlib.pyplot as plt
 from numpy import linalg as LA
@@ -75,7 +74,7 @@ def bestCut(graph):
     sortedIndices = eigenvalues.argsort()
     eigenvalues = eigenvalues[sortedIndices]
     eigenvectors = eigenvectors[:, sortedIndices]
-    print(eigenvectors)
+
 
     # sort vertices of G by their value in the second eigenvector
     secondEigenvector = eigenvectors[:, 1]
@@ -109,13 +108,11 @@ def bestCut(graph):
 # function that returns df/dQ
 def model(P,Q,R,S):
 
-    minterm = 2 * LA.norm(P.matmul(Q.T) - R) * Q
-    maxterm = 2 * R * S.matmul(S.T) * Q
+    minterm = 2 * (LA.norm(P @ Q.T - R))
+    maxterm = 2 * R @ S @ S.T @  Q
     dfdQ =  minterm - maxterm
     return dfdQ
 
-def cutsizeregularization(graph):
-    print()
 
 if __name__ == '__main__':
 
@@ -138,17 +135,18 @@ if __name__ == '__main__':
     Q = np.random.rand(M,K)
 
     S = np.ones((M, M))
-    print(S)
+    #print(S)
 
     nP, nQ = matrix_factorization(R, P, Q, K)
 
     weightedMatrix = np.dot(nQ,nQ.T)
+    print(weightedMatrix)
     laplacianMatrix = laplacian(weightedMatrix)
-    print(laplacianMatrix)
+    #print(laplacianMatrix)
 
     theBestCut = bestCut(weightedMatrix)
     print(theBestCut)
 
-    dfdQ = model(P, Q, R, S)
+    dfdQ = model(P, Q, R, weightedMatrix)
     print(dfdQ)
 
