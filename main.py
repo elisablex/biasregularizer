@@ -40,15 +40,6 @@ def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta = 0.02):
             break
     return P, Q
 
-# function that returns df/dQ
-def model(P,Q,R,S):
-
-    minterm = 2 * (LA.norm(P @ Q.T - R))
-    maxterm = 2 * R @ S @ S.T @  Q
-    dfdQ =  minterm - maxterm
-    return dfdQ
-
-
 if __name__ == '__main__':
 
     R = [
