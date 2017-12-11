@@ -14,13 +14,14 @@ from numpy import linalg as LA
 #   P ... represents strength of association between user and features, |U| x K
 #   Q ... represents strength of association between items and feautures |I| x K
 #   K ... number of latent features
+#   S ... matrix with group membership of items
 #   steps ... max number of steps to perform optimization
 #   alpha ... constant, learning rate (rate of approaching the minimum with gradient descent)
 #   beta ... regularization parameter, controls magnitude of user and item features so that P and Q
 #           are good approximations of R without containing large numbers
 # Output:
 #   P and Q
-def matrix_factorization(R, P, Q, K, steps, alpha, beta):
+def matrix_factorization(R, P, Q, K, S, steps, alpha, beta):
     for step in range(steps):
         for i in range(len(R)):
             for j in range(len(R[i])):
@@ -57,15 +58,22 @@ if __name__ == '__main__':
     N = len(R)
     M = len(R[0])
     K = 2
-    steps = 20
-    alpha = 0.01
-    beta = 0.001
+    steps = 500
+    alpha = 0.001
+    beta = 0.0001
 
+    S = [
+            [1, 1, 1, 1],
+            [1, 1, 1, 1],
+            [-1, -1, -1, -1],
+            [-1, -1, -1, -1],
+            [1, 1, 1, 1],
+    ]
     # initialize P, Q with some random values
     P = np.random.rand(N,K)
     Q = np.random.rand(M,K)
 
-    nP, nQ = matrix_factorization(R, P, Q, K, steps, alpha, beta)
+    nP, nQ = matrix_factorization(R, P, Q, K, S, steps, alpha, beta)
     nR = np.dot(nP, nQ.T)
 
     print("approximated rating matrix")
