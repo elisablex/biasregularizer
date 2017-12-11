@@ -28,11 +28,14 @@ def matrix_factorization(R, P, Q, K, S, steps, alpha, beta):
                 if R[i][j] > 0:
                     # error between estimated rating and real rating
                     eij = R[i][j] - np.dot(P[i,:],Q.T[:,j])
+                    cutsizeregularizer = 2 * (R[i][j] * (np.dot(S[i, :], S.T[:, j])) * Q[i][j])
                     for k in range(K):
-                        #update rules for P &  with regularization
+                        #update rules for P & Q with regularization
                         P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * P[i][k])
                         Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * Q.T[k][j])
+
         error=0
+
         for i in range(len(R)):
             for j in range(len(R[i])):
                 if R[i][j] > 0:
@@ -69,6 +72,7 @@ if __name__ == '__main__':
             [-1, -1, -1, -1],
             [1, 1, 1, 1],
     ]
+    S = np.array(S)
     # initialize P, Q with some random values
     P = np.random.rand(N,K)
     Q = np.random.rand(M,K)
