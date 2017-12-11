@@ -33,16 +33,20 @@ def matrix_factorization(R, P, Q, K, S, steps, alpha, beta):
                         P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * P[i][k])
                         Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * Q.T[k][j])
 
+        #compute overall error to check when to end
         error=0
-
         for i in range(len(R)):
             for j in range(len(R[i])):
                 if R[i][j] > 0:
+                    # this error should be minimal
                     error= error + pow(R[i][j] - np.dot(P[i,:], Q.T[:,j]), 2)
                     for k in range(K):
                         error = error + (beta/2) * pow(P[i][k],2) + pow(Q.T[k][j],2)
-                    cutsizeregularizer = 2 * (R[i][j] * (np.dot(S[i, :], S.T[:, j])) * Q[i][j])
-                    error = error - cutsizeregularizer
+
+        # cut size should be maximal
+        T = (np.dot(S, S.T))
+        B = np.dot(R,T)
+        cutsizeregularizer = -2 * np.dot(B, Q)
         if error < 0.001:
             break
     return P, Q
@@ -67,11 +71,10 @@ if __name__ == '__main__':
     beta = 0.0001
 
     S = [
-            [1, 1, 1, 1],
-            [1, 1, 1, 1],
-            [-1, -1, -1, -1],
-            [-1, -1, -1, -1],
-            [1, 1, 1, 1],
+            [1],
+            [-1],
+            [-1],
+            [1],
     ]
     S = np.array(S)
     # initialize P, Q with some random values
