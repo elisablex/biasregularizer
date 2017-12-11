@@ -20,23 +20,25 @@ from numpy import linalg as LA
 #           are good approximations of R without containing large numbers
 # Output:
 #   P and Q
-def matrix_factorization(R, P, Q, K, steps=5000, alpha=0.0002, beta = 0.02):
+def matrix_factorization(R, P, Q, K, steps, alpha, beta):
     for step in range(steps):
         for i in range(len(R)):
             for j in range(len(R[i])):
                 if R[i][j] > 0:
+                    # error between estimated rating and real rating
                     eij = R[i][j] - np.dot(P[i,:],Q.T[:,j])
                     for k in range(K):
+                        #update rules for P &  with regularization
                         P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * P[i][k])
                         Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * Q.T[k][j])
-        e=0
+        error=0
         for i in range(len(R)):
             for j in range(len(R[i])):
                 if R[i][j] > 0:
-                    e= e + pow(R[i][j] - np.dot(P[i,:], Q.T[:,j]), 2)
+                    error= error + pow(R[i][j] - np.dot(P[i,:], Q.T[:,j]), 2)
                     for k in range(K):
-                        e = e + (beta/2) * pow(P[i][k],2) + pow(Q.T[k][j],2)
-        if e < 0.001:
+                        error = error + (beta/2) * pow(P[i][k],2) + pow(Q.T[k][j],2)
+        if error < 0.001:
             break
     return P, Q
 
@@ -54,13 +56,16 @@ if __name__ == '__main__':
 
     N = len(R)
     M = len(R[0])
-    K = 3
+    K = 2
+    steps = 20
+    alpha = 0.01
+    beta = 0.001
 
     # initialize P, Q with some random values
     P = np.random.rand(N,K)
     Q = np.random.rand(M,K)
 
-    nP, nQ = matrix_factorization(R, P, Q, K)
+    nP, nQ = matrix_factorization(R, P, Q, K, steps, alpha, beta)
     nR = np.dot(nP, nQ.T)
 
     print("approximated rating matrix")
