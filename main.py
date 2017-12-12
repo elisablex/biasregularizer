@@ -3,9 +3,6 @@
 # Nov 21 2017
 
 import numpy as np
-from scipy.integrate import odeint
-import matplotlib.pyplot as plt
-from numpy import linalg as LA
 
 
 # Matrix factorization with Stochastic Gradient Descent
