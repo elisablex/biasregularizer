@@ -28,26 +28,27 @@ def matrix_factorization(R, P, Q, K, S, steps, alpha, beta):
                 if R[i][j] > 0:
                     # error between predicted rating and real rating
                     eij = R[i][j] - np.dot(P[i,:],Q.T[:,j])
+                    # cut size should be maximal
+                    sTrans = (np.dot(S, S.T))
+                    cutSize = np.dot(R, sTrans)
+                    cutsizeregularizer = -2 * np.dot(cutSize, Q)
                     for k in range(K):
                         #update rules for P & Q with regularization
-                        P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * P[i][k])
-                        Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * Q.T[k][j])
+                        P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * (P[i][k] + cutsizeregularizer[i][k]))
+                        Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * (Q.T[k][j] + cutsizeregularizer[i][k]))
 
         #compute overall error to check when to end
-        error=0
+        errorMF=0
         for i in range(len(R)):
             for j in range(len(R[i])):
                 if R[i][j] > 0:
-                    # this error should be minimal
-                    error= error + pow(R[i][j] - np.dot(P[i,:], Q.T[:,j]), 2)
+                    # MF error should be minimal
+                    errorMF= errorMF + pow(R[i][j] - np.dot(P[i,:], Q.T[:,j]), 2)
                     for k in range(K):
-                        error = error + (beta/2) * pow(P[i][k],2) + pow(Q.T[k][j],2)
+                        errorMF = errorMF + (beta/2) * pow(P[i][k],2) + pow(Q.T[k][j],2)
 
-        # cut size should be maximal
-        T = (np.dot(S, S.T))
-        B = np.dot(R,T)
-        cutsizeregularizer = -2 * np.dot(B, Q)
-        if error < 0.001:
+        #for now
+        if errorMF < 0.001:
             break
     return P, Q
 
