@@ -25,14 +25,16 @@ def matrix_factorization(R, P, Q, K, S, steps, alpha, beta):
                 if R[i][j] > 0:
                     # error between predicted rating and real rating
                     eij = R[i][j] - np.dot(P[i,:],Q.T[:,j])
+
                     # cut size should be maximal
-                    sTrans = (np.dot(S, S.T))
-                    cutSize = np.dot(R, sTrans)
-                    cutsizeregularizer = -2 * np.dot(cutSize, Q)
+                    # S.T * L * S
+                    #sTrans = (np.dot(S, S.T))
+                    #cutSize = np.dot(R, sTrans)
+                    #cutsizeregularizer = -2 * np.dot(cutSize, Q)
                     for k in range(K):
                         #update rules for P & Q with regularization
-                        P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * (P[i][k] + cutsizeregularizer[i][k]))
-                        Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * (Q.T[k][j] + cutsizeregularizer[i][k]))
+                        P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * (P[i][k]))# + cutsizeregularizer[i][k]))
+                        Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * (Q.T[k][j]))# + cutsizeregularizer[i][k]))
 
         #compute overall error to check when to end
         errorMF=0
@@ -48,6 +50,17 @@ def matrix_factorization(R, P, Q, K, S, steps, alpha, beta):
         if errorMF < 0.001:
             break
     return P, Q
+
+def laplacian(S,Q):
+
+    #weighted similarity matrix
+    A = np.dot(Q,Q.T)
+    #Generate degree matrix
+    vec = np.ones(len(Q))
+
+    x = np.dot(A,vec.T)
+    print(x)
+    #compute laplacian of weighted similarity matrix
 
 if __name__ == '__main__':
 
