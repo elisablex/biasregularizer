@@ -13,19 +13,20 @@ import matplotlib.pyplot as plt
 #   P ... represents strength of association between user and features, |U| x K
 #   Q ... represents strength of association between items and feautures |I| x K
 #   K ... number of latent features
-#   S ... matrix with group membership of items
+#   s ... matrix with group membership of items
 #   steps ... max number of steps to perform optimization
 #   alpha ... constant, learning rate (rate of approaching the minimum with gradient descent)
 #   beta ... regularization parameter, controls magnitude of user and item features so that P and Q
 #           are good approximations of R without containing large numbers
+#   gamma ... regularization parameter, controls impact of cut size regularization
 # Output:
 #   P and Q
-def matrix_factorization(R, P, Q, s, steps, eta, lam1, lam2, tol=1e-5):
+def matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma, tol=1e-5):
 
     # mask the nans
     masked_R = np.ma.array(R, mask=np.isnan(R))
 
-    # keep the values of the obejctive function
+    # keep the values of the objective function
     objectives =[]
 
     # keep the rmse
@@ -38,18 +39,18 @@ def matrix_factorization(R, P, Q, s, steps, eta, lam1, lam2, tol=1e-5):
         delta_Q = np.ma.dot((np.ma.dot(P, Q.T) - masked_R).T, P)
 
         # L2 regularization
-        delta_P += lam1 * P
-        delta_Q += lam1 * Q
+        delta_P += beta * P
+        delta_Q += beta * Q
 
         # cut size regularization
-        #delta_Q += lam2 * np.dot(np.outer(s, s), Q - np.diag(np.sum(Q, axis=0)))
+        #delta_Q += gamma * np.dot(np.outer(s, s), Q - np.diag(np.sum(Q, axis=0)))
 
         # update
-        P -= 2.0 * eta * delta_P
-        Q -= 2.0 * eta * delta_Q
+        P -= 2.0 * alpha * delta_P
+        Q -= 2.0 * alpha * delta_Q
 
         # check the convergence
-        objective, rmse = evaluate_objective_function(masked_R, P, Q, lam1, lam2)
+        objective, rmse = evaluate_objective_function(masked_R, P, Q, beta, gamma)
         objectives.append(objective)
         rmses.append(rmse)
         if len(objectives) > 1:
@@ -91,12 +92,12 @@ def matrix_factorization(R, P, Q, s, steps, eta, lam1, lam2, tol=1e-5):
 
 
 # calcualte the value of the objective function
-def evaluate_objective_function(masked_R, P, Q, lam1, lam2):
+def evaluate_objective_function(masked_R, P, Q, beta, gamma):
     error = np.ma.dot(P, Q.T) - masked_R
     frobenius = np.linalg.norm(error)
     squared_error = frobenius * frobenius
     rmse = math.sqrt(squared_error / masked_R.count())
-    objective = squared_error + lam1 * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2)
+    objective = squared_error + beta * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2)
     return objective, rmse
 
 
@@ -135,16 +136,13 @@ def plot(values, ylabel, title):
     plt.title(title)
 
 
-def laplacian(S,Q):
-
-    #weighted similarity matrix
-    A = np.dot(Q,Q.T)
+def degree_matrix(Q):
     #Generate degree matrix
-    vec = np.ones(len(Q))
+    A = adjacency(Q)
+    vec = np.ones(len(A))
 
     x = np.dot(A,vec.T)
     print(x)
-    #compute laplacian of weighted similarity matrix
 
 
 if __name__ == '__main__':
@@ -161,9 +159,9 @@ if __name__ == '__main__':
     n, m = R.shape
     k = 2
     steps = 1000
-    eta = 0.001  # learning rate
-    lam1 = 0.001  # L2 regularization
-    lam2 = 0.001  # cut size regularization
+    alpha = 0.001  # learning rate
+    beta = 0.001  # L2 regularization
+    gamma = 0.001  # cut size regularization
 
     # division vector
     s = np.array([1, -1, -1, 1])
@@ -172,7 +170,7 @@ if __name__ == '__main__':
     P = np.random.rand(n, k)
     Q = np.random.rand(m, k)
 
-    nP, nQ, objective, rmse = matrix_factorization(R, P, Q, s, steps, eta, lam1, lam2)
+    nP, nQ, objective, rmse = matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma)
     nR = np.dot(nP, nQ.T)
 
     print("approximated rating matrix")
