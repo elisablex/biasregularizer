@@ -23,6 +23,8 @@ import matplotlib.pyplot as plt
 #   P and Q
 def matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma, tol=1e-5):
 
+    m, k = Q.shape
+
     # mask the nans
     masked_R = np.ma.array(R, mask=np.isnan(R))
 
@@ -32,27 +34,32 @@ def matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma, tol=1e-5):
     # keep the rmse
     rmses = []
 
+    # keep the cut size
+    rs = []
+
     for step in range(steps):
 
         # calculate the gradients
-        delta_P = np.ma.dot(np.ma.dot(P, Q.T) - masked_R, Q)
-        delta_Q = np.ma.dot((np.ma.dot(P, Q.T) - masked_R).T, P)
+        delta_P = 2.0 * np.ma.dot(np.ma.dot(P, Q.T) - masked_R, Q)
+        delta_Q = 2.0 * np.ma.dot((np.ma.dot(P, Q.T) - masked_R).T, P)
 
         # L2 regularization
-        delta_P += beta * P
-        delta_Q += beta * Q
+        delta_P += 2.0 * beta * P
+        delta_Q += 2.0 * beta * Q
 
         # cut size regularization
-        #delta_Q += gamma * np.dot(np.outer(s, s), Q - np.diag(np.sum(Q, axis=0)))
+        delta_Q += 2.0 * gamma * np.dot(np.outer(s, s), Q)
+        delta_Q -= gamma * (np.tile(np.dot(Q, np.ones(k)), (k, 1)).T + np.tile(np.dot(Q.T, np.ones(m)), (m, 1)))
 
         # update
-        P -= 2.0 * alpha * delta_P
-        Q -= 2.0 * alpha * delta_Q
+        P -= alpha * delta_P
+        Q -= alpha * delta_Q
 
         # check the convergence
-        objective, rmse = evaluate_objective_function(masked_R, P, Q, beta, gamma)
+        objective, rmse, cs = evaluate_objective_function(masked_R, P, Q, s, beta, gamma)
         objectives.append(objective)
         rmses.append(rmse)
+        rs.append(cs)
         if len(objectives) > 1:
             if abs(objectives[-1] - objectives[-2]) < tol:
                 break
@@ -88,17 +95,19 @@ def matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma, tol=1e-5):
     #     if errorMF < 0.001:
     #         break
 
-    return P, Q, objectives, rmses
+    return P, Q, objectives, rmses, rs
 
 
 # calcualte the value of the objective function
-def evaluate_objective_function(masked_R, P, Q, beta, gamma):
+def evaluate_objective_function(masked_R, P, Q, s, beta, gamma):
     error = np.ma.dot(P, Q.T) - masked_R
     frobenius = np.linalg.norm(error)
     squared_error = frobenius * frobenius
     rmse = math.sqrt(squared_error / masked_R.count())
-    objective = squared_error + beta * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2)
-    return objective, rmse
+    cs = cut_size(graph_laplacian(adjacency(Q)), s)
+    objective = squared_error + beta * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2) + \
+                gamma * cs
+    return objective, rmse, cs
 
 
 # bisection cut size
@@ -157,11 +166,11 @@ if __name__ == '__main__':
                   [0, 1, 5, 4]])
 
     n, m = R.shape
-    k = 2
-    steps = 1000
-    alpha = 0.001  # learning rate
-    beta = 0.001  # L2 regularization
-    gamma = 0.001  # cut size regularization
+    k = 3
+    steps = 5000
+    alpha = 0.0005  # learning rate
+    beta = 0.05  # L2 regularization
+    gamma = 0.05  # cut size regularization
 
     # division vector
     s = np.array([1, -1, -1, 1])
@@ -170,14 +179,21 @@ if __name__ == '__main__':
     P = np.random.rand(n, k)
     Q = np.random.rand(m, k)
 
-    nP, nQ, objective, rmse = matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma)
+    nP, nQ, objective, rmse, rs = matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma)
     nR = np.dot(nP, nQ.T)
 
     print("approximated rating matrix")
     print(nR)
 
+    print('adjacency')
+    print(adjacency(Q))
+
+    print('laplacian')
+    print(graph_laplacian(adjacency(Q)))
+
     # plot the objective function and the rmse
     plot(objective, 'J', 'Objective Function')
     plot(rmse, 'RMSE', 'RMSE')
+    plot(rs, 'R', 'Cut Size')
     plt.show()
 
