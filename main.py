@@ -105,7 +105,7 @@ def evaluate_objective_function(masked_R, P, Q, s, beta, gamma):
     squared_error = frobenius * frobenius
     rmse = math.sqrt(squared_error / masked_R.count())
     cs = cut_size(graph_laplacian(adjacency(Q)), s)
-    objective = squared_error + beta * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2) + \
+    objective = squared_error + beta * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2) - \
                 gamma * cs
     return objective, rmse, cs
 
