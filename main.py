@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 #           are good approximations of R without containing large numbers
 # Output:
 #   P and Q
-def matrix_factorization(R, P, Q, k, s, steps, eta, lam, tol=1e-5):
+def matrix_factorization(R, P, Q, s, steps, eta, lam1, lam2, tol=1e-5):
 
     # mask the nans
     masked_R = np.ma.array(R, mask=np.isnan(R))
@@ -37,16 +37,19 @@ def matrix_factorization(R, P, Q, k, s, steps, eta, lam, tol=1e-5):
         delta_P = np.ma.dot(np.ma.dot(P, Q.T) - masked_R, Q)
         delta_Q = np.ma.dot((np.ma.dot(P, Q.T) - masked_R).T, P)
 
-        # regularize
-        delta_P += lam * P
-        delta_Q += lam * Q
+        # L2 regularization
+        delta_P += lam1 * P
+        delta_Q += lam1 * Q
+
+        # cut size regularization
+        #delta_Q += lam2 * np.dot(np.outer(s, s), Q - np.diag(np.sum(Q, axis=0)))
 
         # update
         P -= 2.0 * eta * delta_P
         Q -= 2.0 * eta * delta_Q
 
         # check the convergence
-        objective, rmse = evaluate_objective_function(masked_R, P, Q, lam)
+        objective, rmse = evaluate_objective_function(masked_R, P, Q, lam1, lam2)
         objectives.append(objective)
         rmses.append(rmse)
         if len(objectives) > 1:
@@ -88,12 +91,12 @@ def matrix_factorization(R, P, Q, k, s, steps, eta, lam, tol=1e-5):
 
 
 # calcualte the value of the objective function
-def evaluate_objective_function(masked_R, P, Q, lam):
+def evaluate_objective_function(masked_R, P, Q, lam1, lam2):
     error = np.ma.dot(P, Q.T) - masked_R
     frobenius = np.linalg.norm(error)
     squared_error = frobenius * frobenius
     rmse = math.sqrt(squared_error / masked_R.count())
-    objective = squared_error + lam * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2)
+    objective = squared_error + lam1 * (np.linalg.norm(P) ** 2 + np.linalg.norm(Q) ** 2)
     return objective, rmse
 
 
@@ -159,7 +162,8 @@ if __name__ == '__main__':
     k = 2
     steps = 1000
     eta = 0.001  # learning rate
-    lam = 0.001  # regularization strength
+    lam1 = 0.001  # L2 regularization
+    lam2 = 0.001  # cut size regularization
 
     # division vector
     s = np.array([1, -1, -1, 1])
@@ -168,7 +172,7 @@ if __name__ == '__main__':
     P = np.random.rand(n, k)
     Q = np.random.rand(m, k)
 
-    nP, nQ, objective, rmse = matrix_factorization(R, P, Q, k, s, steps, eta, lam)
+    nP, nQ, objective, rmse = matrix_factorization(R, P, Q, s, steps, eta, lam1, lam2)
     nR = np.dot(nP, nQ.T)
 
     print("approximated rating matrix")
