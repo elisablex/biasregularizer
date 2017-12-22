@@ -36,12 +36,5 @@ if __name__ == '__main__':
     Q = create_matrix(m, k, hmean, hstd, lmean, lstd)
     R = compute_rating_matrix(P,Q)
 
-    print("user matrix")
-    print(P)
-    print("item matrix")
-    print(Q)
-    print("rating matrix")
-    print(R)
-
     plt.imshow(R, cmap='hot', interpolation='nearest')
     plt.show()
