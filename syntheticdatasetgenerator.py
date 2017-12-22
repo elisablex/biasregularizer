@@ -58,5 +58,5 @@ if __name__ == '__main__':
     print("rating matrix")
     print(R)
 
-    plt.imshow(R, cmap='hot')
+    plt.imshow(R, cmap='hot', interpolation='nearest')
     plt.show()
