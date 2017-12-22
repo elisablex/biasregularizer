@@ -5,50 +5,35 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+# generate user and item matrix
+def create_matrix(rows, cols, hmean, hstd, lmean, lstd):
 
+    highs = np.random.normal(hmean, hstd, (int(rows/2), 1))
+    lows = np.random.normal(lmean, lstd, (int(rows/2), 1))
 
-def create_matrix(rows, cols, meanhigh, stdhigh, meanlow, stdlow):
+    hl = np.concatenate([highs, lows], axis=0)
+    lh = np.concatenate([lows, highs], axis=0)
 
-    matrix = []
+    matrix = np.concatenate([hl,lh],axis=1)
+    return matrix
 
-    for i in range(rows):
-        randomhigh = generate_preferences(meanhigh, stdhigh)
-        randomlow = generate_preferences(meanlow, stdlow)
-        temp = []
-        if i < int(rows/2):
-            temp.append(randomhigh)
-            temp.append(randomlow)
-        else:
-            temp.append(randomlow)
-            temp.append(randomhigh)
-        matrix.append(temp)
-
-
-    return np.array(matrix)
-
-
-def generate_preferences(mean, std):
-    high = np.random.normal(mean, std)
-    return high
-
-
+# reconstruct rating matrix
 def compute_rating_matrix(P, Q):
     R = np.dot(P,Q.T)
     return R
 
-
 if __name__ == '__main__':
 
-    k=2
+    k=2 # number of latent factors
     n=50 # number of users
     m=100 # number of items
-    highprefmean = 5.0
-    lowprefmean = 0.5
-    highprefstd = 1.0
-    lowprefstd = 0.1
+    hmean = 5.0 #mean of high pref vals
+    hstd = 1.0 #std of high pref vals
+    lmean = 0.5 #mean of low pref vals
+    lstd = 0.1 #std of low pref vals
 
-    P = create_matrix(n, k, highprefmean, highprefstd, lowprefmean, lowprefstd)
-    Q = create_matrix(m, k, highprefmean, highprefstd, lowprefmean, lowprefstd)
+    P = create_matrix(n, k, hmean, hstd, lmean, lstd)
+    Q = create_matrix(m, k, hmean, hstd, lmean, lstd)
     R = compute_rating_matrix(P,Q)
 
     print("user matrix")
