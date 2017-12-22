@@ -10,9 +10,8 @@ import matplotlib.pyplot as plt
 # Matrix factorization with Stochastic Gradient Descent
 # Input:
 #   R ... rating matrix
-#   P ... represents strength of association between user and features, |U| x K
-#   Q ... represents strength of association between items and feautures |I| x K
-#   K ... number of latent features
+#   P ... represents strength of association between user and features, |U| x k
+#   Q ... represents strength of association between items and feautures |I| x k
 #   s ... matrix with group membership of items
 #   steps ... max number of steps to perform optimization
 #   alpha ... constant, learning rate (rate of approaching the minimum with gradient descent)
@@ -64,37 +63,6 @@ def matrix_factorization(R, P, Q, s, steps, alpha, beta, gamma, tol=1e-5):
             if abs(objectives[-1] - objectives[-2]) < tol:
                 break
 
-    # for step in range(steps):
-    #     for i in range(len(R)):
-    #         for j in range(len(R[i])):
-    #             if R[i][j] > 0:
-    #                 # error between predicted rating and real rating
-    #                 eij = R[i][j] - np.dot(P[i,:],Q.T[:,j])
-    #
-    #                 # cut size should be maximal
-    #                 # S.T * L * S
-    #                 #sTrans = (np.dot(S, S.T))
-    #                 #cutSize = np.dot(R, sTrans)
-    #                 #cutsizeregularizer = -2 * np.dot(cutSize, Q)
-    #                 for k in range(K):
-    #                     #update rules for P & Q with regularization
-    #                     P[i][k] = P[i][k] + alpha * (2 * eij * Q.T[k][j] - beta * (P[i][k]))# + cutsizeregularizer[i][k]))
-    #                     Q.T[k][j] = Q.T[k][j] + alpha * (2 * eij * P[i][k] - beta * (Q.T[k][j]))# + cutsizeregularizer[i][k]))
-    #
-    #     #compute overall error to check when to end
-    #     errorMF=0
-    #     for i in range(len(R)):
-    #         for j in range(len(R[i])):
-    #             if R[i][j] > 0:
-    #                 # MF error should be minimal
-    #                 errorMF= errorMF + pow(R[i][j] - np.dot(P[i,:], Q.T[:,j]), 2)
-    #                 for k in range(K):
-    #                     errorMF = errorMF + (beta/2) * pow(P[i][k],2) + pow(Q.T[k][j],2)
-    #
-    #     #for now
-    #     if errorMF < 0.001:
-    #         break
-
     return P, Q, objectives, rmses, rs
 
 
@@ -143,15 +111,6 @@ def plot(values, ylabel, title):
     plt.xlabel("iteration")
     plt.ylabel(ylabel)
     plt.title(title)
-
-
-def degree_matrix(Q):
-    #Generate degree matrix
-    A = adjacency(Q)
-    vec = np.ones(len(A))
-
-    x = np.dot(A,vec.T)
-    print(x)
 
 
 if __name__ == '__main__':
