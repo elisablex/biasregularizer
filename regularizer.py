@@ -5,6 +5,9 @@
 import numpy as np
 import math
 import matplotlib.pyplot as plt
+import seaborn as sns
+
+from matrixgenerator import generate_rating_matrix
 
 
 # Matrix factorization with Stochastic Gradient Descent
@@ -113,26 +116,44 @@ def plot(values, ylabel, title):
     plt.title(title)
 
 
+# plot a heatmap
+def heatmap(values, title):
+    plt.figure(next(fc))
+    sns.heatmap(values, xticklabels=False, yticklabels=False)
+    plt.title(title)
+
+
 if __name__ == '__main__':
 
     # figure counter
     fc = fcounter()
 
-    R = np.array([[5, 3, 0, 1],
-                  [4, 0, 0, 1],
-                  [1, 1, 0, 5],
-                  [1, 0, 0, 4],
-                  [0, 1, 5, 4]])
+    #R = np.array([[5, 3, 0, 1],
+    #              [4, 0, 0, 1],
+    #              [1, 1, 0, 5],
+    #              [1, 0, 0, 4],
+    #              [0, 1, 5, 4]])
+
+    PG, QG, R = generate_rating_matrix()
 
     n, m = R.shape
-    k = 3
-    steps = 5000
-    alpha = 0.0005  # learning rate
-    beta = 0.05  # L2 regularization
-    gamma = 0.05  # cut size regularization
+    k = 2
+    steps = 500
+    alpha = 0.00005  # learning rate
+    beta = 0.1  # L2 regularization
+    gamma = 0.1  # cut size regularization
 
     # division vector
-    s = np.array([1, -1, -1, 1])
+    # s = np.array([1, -1, -1, 1])
+
+    # random division vector
+    # s = np.random.rand(m)
+    # s[s > 0.5] = 1
+    # s[s <= 0.5] = -1
+
+    # exact division vector
+    s = [-1] * int(m / 2)
+    s.extend([1] * int(m / 2))
 
     # initialize P, Q with some random values
     P = np.random.rand(n, k)
@@ -144,11 +165,35 @@ if __name__ == '__main__':
     print("approximated rating matrix")
     print(nR)
 
+    print("rating matrix")
+    print(R)
+
     print('adjacency')
     print(adjacency(Q))
 
     print('laplacian')
     print(graph_laplacian(adjacency(Q)))
+
+    # plot the matrices
+    heatmap(R, 'R')
+    heatmap(nR, 'Fitted R')
+    heatmap(PG, 'P')
+    heatmap(P, 'Fitted P')
+    heatmap(P - PG, 'Differences in P')
+    print('max abs difference in P')
+    print(np.max(np.absolute((P - PG))))
+    heatmap(QG, 'Q')
+    heatmap(Q, 'Fitted Q')
+    heatmap(Q - QG, 'Differences in Q')
+    print('max abs difference in Q')
+    print(np.max(np.absolute((Q - QG))))
+
+    print("final objective")
+    print(objective[-1])
+    print("final rmse")
+    print(rmse[-1])
+    print("final cut size")
+    print(rs[-1])
 
     # plot the objective function and the rmse
     plot(objective, 'J', 'Objective Function')
