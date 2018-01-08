@@ -5,16 +5,21 @@
 import numpy as np
 import numpy.linalg as LA
 import scipy.sparse as sp
+
 from sklearn.utils import check_random_state, check_array
 from sklearn.utils.extmath import randomized_svd
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn.metrics.pairwise import cosine_distances
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import Imputer
+
 import math
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
 from matrixgenerator import generate_rating_matrix
+from matrixgenerator import sample_ratings
 
 
 # reused scikit-learn function
@@ -144,20 +149,25 @@ def _initialize_nmf(X, n_components, variant=None, eps=1e-6,
 # graph normalized nmf
 def regularized_nmf(X, A, lambd=0, n_components=None, max_iter=100):
 
+        # handle missing values by inserting mean value alongside columns
+        # needed for initialization
+        imputer = Imputer()
+        Xm = imputer.fit_transform(X)
+
         # mask the nans
         masked_X = np.ma.array(X, mask=np.isnan(X))
         count = masked_X.count()
 
-        masked_X = check_array(masked_X)
-        check_non_negative(masked_X, "NMF.fit")
-        n_samples, n_features = masked_X.shape
+        # Xm = check_array(Xm)
+        # check_non_negative(masked_X, "NMF.fit")
+        n_samples, n_features = Xm.shape
 
         if not n_components:
             n_components = min(n_samples, n_features)
         else:
             n_components = n_components
 
-        W, H = NBS_init(masked_X, n_components, init='nndsvd')
+        W, H = NBS_init(Xm, n_components, init='nndsvd')
 
         rmses = []
 
@@ -176,17 +186,17 @@ def regularized_nmf(X, A, lambd=0, n_components=None, max_iter=100):
             # delta_w2 = np.dot(np.ones(masked_X.shape), H.T)
             # W = np.multiply(W, delta_w1 / delta_w2)
 
-            RtW = lambd * np.dot(A, H.T) + np.dot(masked_X.T, W)
+            RtW = lambd * np.dot(A, H.T) + np.ma.dot(masked_X.T, W)
             HtWtW = lambd * np.dot(D, H.T) + np.dot(H.T, np.dot(W.T, W))
             H = np.multiply(H, np.divide(RtW, HtWtW).T)
 
-            RHt = np.dot(masked_X, H.T)
+            RHt = np.ma.dot(masked_X, H.T)
             WHHt = np.dot(W, np.dot(H, H.T))
             W = np.multiply(W, np.divide(RHt, WHHt))
 
             # error = LA.norm(X - np.dot(W, H))
 
-            error = masked_X - np.dot(W, H)
+            error = np.ma.dot(W, H) - masked_X
             frobenius = np.linalg.norm(error)
             squared_error = frobenius * frobenius
             rmse = math.sqrt(squared_error / count)
@@ -231,8 +241,8 @@ def results(R, W, H, rmse):
     print('R')
     print(R)
 
-    print('rating distances')
-    print(pairwise_distances(R.T))
+    #print('rating distances')
+    #print(pairwise_distances(R.T))
     print('embedded distances')
     print(pairwise_distances(H.T))
 
@@ -272,22 +282,22 @@ def ex0():
 def ex1():
     # generate random matrices
     WG, HtG, R = generate_rating_matrix()
+    R = sample_ratings(R)
 
     # similarity graph enforces the filter bubble
     A1 = cosine_similarity(HtG)
-    print(A1)
 
     # distance graph reduces filter bubble
     A2 = cosine_distances(HtG)
-    print(A2)
 
     # fit -> higher lambda is stronger regularization
     for A in [A1, A2]:
-        for lambd in [0.0, 0.1, 0.2, 0.3]:
+        for lambd in [0.0, 0.1, 1.0, 2.0, 3.0, 5.0]:
             W, H, rmse = regularized_nmf(R, A, lambd=lambd, n_components=2, max_iter=100)
             print(lambd)
             print('final rmse')
             print(rmse[-1])
+        print('---------------------------')
 
     results(R, W, H, rmse)
     heatmap(WG, 'WG')
