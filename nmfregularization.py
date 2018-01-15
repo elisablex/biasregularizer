@@ -230,7 +230,7 @@ def heatmap(values, title):
     plt.title(title)
 
 
-def results(R, W, H, rmse):
+def results(R, W, H, rmse, plotting=False):
     print("W")
     print(W)
     print("H")
@@ -241,22 +241,24 @@ def results(R, W, H, rmse):
     print('R')
     print(R)
 
-    #print('rating distances')
-    #print(pairwise_distances(R.T))
     print('embedded distances')
     print(pairwise_distances(H.T))
 
+    print ('rmse')
+    print(rmse)
     print('final rmse')
     print(rmse[-1])
 
-    #plot matrices
-    heatmap(R, 'R')
-    heatmap(R_reconstructed, 'Reconstructed R')
-    heatmap(W, 'W')
-    heatmap(H.T, 'H')
+    if plotting:
 
-    # plor rmse
-    plot(rmse, 'RMSE', 'RMSE')
+        #plot matrices
+        heatmap(R, 'R')
+        heatmap(R_reconstructed, 'Reconstructed R')
+        heatmap(W, 'W')
+        heatmap(H.T, 'H')
+
+        # plot rmse
+        plot(rmse, 'RMSE', 'RMSE')
 
 
 def ex0():
@@ -279,44 +281,87 @@ def ex0():
     results(R, W, H, rmse)
 
 
-def ex1():
+def ex1(plotting=False, verbose=True):
+    n = 50
+    m = 100
+    fraction = 0.1
+
     # generate random matrices
-    WG, HtG, R = generate_rating_matrix()
-    R = sample_ratings(R)
+    WG, HtG, R = generate_rating_matrix(n=n, m=m)
+    R = sample_ratings(R, fraction=fraction)
 
-    # similarity graph enforces the filter bubble
-    A1 = cosine_similarity(HtG)
+    # print the generated matrices
+    if verbose:
+        print('WG')
+        print(WG)
+        print('HtG')
+        print(HtG)
 
-    # distance graph reduces filter bubble
-    A2 = cosine_distances(HtG)
+    # normalize the ratings to unity
+    Rm = np.ma.array(R, mask=np.isnan(R))
+    length = np.sqrt(np.ma.diag(np.ma.dot(Rm.T, Rm)))
+    Rm = Rm / length
+
+    # group vector for calculation of the cut size after factorization
+    s = [-1] * int(m / 2)
+    s.extend([1] * int(m / 2))
+
+    # similarity graph from the rating matrix
+    G1 = np.ma.dot(Rm.T, Rm)
+
+    # distance graph from the rating matrix
+    G2 = 1 - G1
 
     # fit -> higher lambda is stronger regularization
-    for A in [A1, A2]:
-        for lambd in [0.0, 0.1, 1.0, 2.0, 3.0, 5.0]:
-            W, H, rmse = regularized_nmf(R, A, lambd=lambd, n_components=2, max_iter=100)
-            print(lambd)
-            print('final rmse')
-            print(rmse[-1])
-        print('---------------------------')
+    for G in [G1, G2]:
+        for lambd in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
+            W, H, rmse = regularized_nmf(R, G, lambd=lambd, n_components=2, max_iter=100)
+            print('regularization:', lambd)
+            print('final rmse: ', rmse[-1])
 
-    results(R, W, H, rmse)
-    heatmap(WG, 'WG')
-    heatmap(HtG, 'HtG')
+            # print results
+            if verbose:
+                results(R, W, H, rmse, plotting=plotting)
+                print('max abs difference in W')
+                print(np.max(np.absolute((W - WG))))
+                print('max abs difference in H')
+                print(np.max(np.absolute((H.T - HtG))))
 
-    heatmap(W - WG, 'Differences in W')
-    print('max abs difference in W')
-    print(np.max(np.absolute((W - WG))))
-    heatmap(H.T - HtG, 'Differences in H.T')
-    print('max abs difference in H')
-    print(np.max(np.absolute((H.T - HtG))))
+            # normalize H to compare adjacency matrices with each other
+            length = np.sqrt(np.diag(np.dot(H.T, H)))
+            T = H / length
+            A = np.dot(T.T, T)
+            D = np.diag(np.sum(A, axis=0))
+            L = D - A
+
+            # print matrix and cut size
+            if verbose:
+                print('A')
+                print(A)
+            print('cut size')
+            print(0.25 * np.dot(np.dot(s, L), s))
+
+            if plotting:
+                heatmap(WG, 'WG')
+                heatmap(HtG, 'HtG')
+                heatmap(W - WG, 'Differences in W')
+                heatmap(H.T - HtG, 'Differences in H.T')
+                heatmap(A, 'adjacency')
+
+            print('---------------------------')
+        print('**********************************')
 
 
 if __name__ == '__main__':
+
+    plotting = False
+    verbose = False
 
     # figure counter
     fc = fcounter()
 
     # run
-    ex1()
+    ex1(plotting=plotting, verbose=verbose)
 
-    plt.show()
+    if plotting:
+        plt.show()
