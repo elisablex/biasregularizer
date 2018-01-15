@@ -197,8 +197,7 @@ def regularized_nmf(X, A, lambd=0, n_components=None, max_iter=100):
             # error = LA.norm(X - np.dot(W, H))
 
             error = np.ma.dot(W, H) - masked_X
-            frobenius = np.linalg.norm(error)
-            squared_error = frobenius * frobenius
+            squared_error = np.sum(np.ma.diag(np.ma.dot(error.T, error)))
             rmse = math.sqrt(squared_error / count)
 
             rmses.append(rmse)
@@ -355,7 +354,7 @@ def ex1(plotting=False, verbose=True):
 if __name__ == '__main__':
 
     plotting = False
-    verbose = False
+    verbose = True
 
     # figure counter
     fc = fcounter()
