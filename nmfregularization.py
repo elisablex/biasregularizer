@@ -149,10 +149,12 @@ def _initialize_nmf(X, n_components, variant=None, eps=1e-6,
 # graph normalized nmf
 def regularized_nmf(X, A, lambd=0, n_components=None, max_iter=100):
 
+        # still need to handle division by zero
+
         # handle missing values by inserting mean value alongside columns
         # needed for initialization
-        imputer = Imputer()
-        Xm = imputer.fit_transform(X)
+        # imputer = Imputer()
+        # Xm = imputer.fit_transform(X)
 
         # mask the nans
         masked_X = np.ma.array(X, mask=np.isnan(X))
@@ -160,14 +162,21 @@ def regularized_nmf(X, A, lambd=0, n_components=None, max_iter=100):
 
         # Xm = check_array(Xm)
         # check_non_negative(masked_X, "NMF.fit")
-        n_samples, n_features = Xm.shape
+        n_samples, n_features = X.shape
 
         if not n_components:
             n_components = min(n_samples, n_features)
         else:
             n_components = n_components
 
-        W, H = NBS_init(Xm, n_components, init='nndsvd')
+        # W, H = NBS_init(Xm, n_components, init='nndsvd')
+
+        # random initialization works better
+        # we need to repeat multiple times and pick the best solution
+        # initialize P, Q with some random values
+        W = np.random.rand(n_samples, n_components)
+        H = np.random.rand(n_features, n_components)
+        H = H.T
 
         rmses = []
 
@@ -314,7 +323,7 @@ def ex1(plotting=False, verbose=True):
     # fit -> higher lambda is stronger regularization
     for G in [G1, G2]:
         for lambd in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
-            W, H, rmse = regularized_nmf(R, G, lambd=lambd, n_components=2, max_iter=100)
+            W, H, rmse = regularized_nmf(R, G, lambd=lambd, n_components=100, max_iter=100)
             print('regularization:', lambd)
             print('final rmse: ', rmse[-1])
 
@@ -354,7 +363,7 @@ def ex1(plotting=False, verbose=True):
 if __name__ == '__main__':
 
     plotting = False
-    verbose = True
+    verbose = False
 
     # figure counter
     fc = fcounter()
