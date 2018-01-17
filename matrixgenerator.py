@@ -22,8 +22,11 @@ def create_matrix(rows, cols, hmean, hstd, lmean, lstd):
 
 
 # reconstruct rating matrix
-def compute_rating_matrix(P, Q):
-    R = np.dot(P, Q.T)
+def compute_rating_matrix(P, Q, stars=5):
+    X = np.dot(P, Q.T)
+    hist, bins = np.histogram(X, bins=stars)
+    R = np.digitize(X, bins)
+    R[R == (stars + 1)] = stars
     return R
 
 

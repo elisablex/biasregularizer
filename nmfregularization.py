@@ -3,215 +3,52 @@
 # Goal: find two non-negative matrices (W, H), whose product approximates the non-negative matrix X.
 # Jan 3 2018
 import numpy as np
-import numpy.linalg as LA
-import scipy.sparse as sp
-
-from sklearn.utils import check_random_state, check_array
-from sklearn.utils.extmath import randomized_svd
-from sklearn.metrics.pairwise import pairwise_distances
-from sklearn.metrics.pairwise import cosine_distances
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import Imputer
-
 import math
-
 import matplotlib.pyplot as plt
+
+from sklearn.metrics.pairwise import pairwise_distances
 import seaborn as sns
 
 from matrixgenerator import generate_rating_matrix
 from matrixgenerator import sample_ratings
 
 
-# reused scikit-learn function
-def check_non_negative(X, whom):
-    X = X.data if sp.issparse(X) else X
-    if (X < 0).any():
-        raise ValueError("Negative values in data passed to %s" % whom)
-
-
-# reused scikit-learn function
-def NBS_init(X, n_components, init=None):
-        n_samples, n_features = X.shape
-        if init is None:
-            if n_components < n_features:
-                init = 'nndsvd'
-            else:
-                init = 'random'
-
-        if init == 'nndsvd':
-            W, H = _initialize_nmf(X, n_components)
-        elif init == "random":
-            rng = check_random_state(random_state='None')
-            W = rng.randn(n_samples, n_components)
-            np.abs(W, out=W)
-            H = rng.randn(n_components, n_features)
-            np.abs(H, H)
-        else:
-            raise ValueError(
-                'Invalid init parameter: got %r instead of one of %r' %
-                (init, (None, 'nndsvd', 'nndsvda', 'nndsvdar', 'random')))
-        return W, H
-
-
-# reused scikit-learn function
-def _initialize_nmf(X, n_components, variant=None, eps=1e-6,
-                    random_state=None):
-    """NNDSVD algorithm for NMF initialization.
-    Computes a good initial guess for the non-negative
-    rank k matrix approximation for X: X = WH
-    Parameters
-    ----------
-    X : array, [n_samples, n_features]
-        The data matrix to be decomposed.
-    n_components : array, [n_components, n_features]
-        The number of components desired in the approximation.
-    variant : None | 'a' | 'ar'
-        The variant of the NNDSVD algorithm.
-        Accepts None, 'a', 'ar'
-        None: leaves the zero entries as zero
-        'a': Fills the zero entries with the average of X
-        'ar': Fills the zero entries with standard normal random variates.
-        Default: None
-    eps: float
-        Truncate all values less then this in output to zero.
-    random_state : numpy.RandomState | int, optional
-        The generator used to fill in the zeros, when using variant='ar'
-        Default: numpy.random
-    Returns
-    -------
-    (W, H) :
-        Initial guesses for solving X ~= WH such that
-        the number of columns in W is n_components.
-    Remarks
-    -------
-    This implements the algorithm described in
-    C. Boutsidis, E. Gallopoulos: SVD based
-    initialization: A head start for nonnegative
-    matrix factorization - Pattern Recognition, 2008
-    http://tinyurl.com/nndsvd
-    """
-    check_non_negative(X, "NMF initialization")
-    if variant not in (None, 'a', 'ar'):
-        raise ValueError("Invalid variant name")
-
-    U, S, V = randomized_svd(X, n_components)
-    # dtype modification
-    W, H = np.zeros(U.shape, dtype=np.float32), np.zeros(V.shape,
-                                                         dtype=np.float32)
-    # The leading singular triplet is non-negative
-    # so it can be used as is for initialization.
-    W[:, 0] = np.sqrt(S[0]) * np.abs(U[:, 0])
-    H[0, :] = np.sqrt(S[0]) * np.abs(V[0, :])
-
-    for j in range(1, n_components):
-        x, y = U[:, j], V[j, :]
-
-        # extract positive and negative parts of column vectors
-        x_p, y_p = np.maximum(x, 0), np.maximum(y, 0)
-        x_n, y_n = np.abs(np.minimum(x, 0)), np.abs(np.minimum(y, 0))
-
-        # and their norms
-        x_p_nrm, y_p_nrm = LA.norm(x_p), LA.norm(y_p)
-        x_n_nrm, y_n_nrm = LA.norm(x_n), LA.norm(y_n)
-
-        m_p, m_n = x_p_nrm * y_p_nrm, x_n_nrm * y_n_nrm
-
-        # choose update
-        if m_p > m_n:
-            u = x_p / x_p_nrm
-            v = y_p / y_p_nrm
-            sigma = m_p
-        else:
-            u = x_n / x_n_nrm
-            v = y_n / y_n_nrm
-            sigma = m_n
-
-        lbd = np.sqrt(S[j] * sigma)
-        W[:, j] = lbd * u
-        H[j, :] = lbd * v
-
-    W[W < eps] = 0
-    H[H < eps] = 0
-
-    if variant == "a":
-        avg = X.mean()
-        W[W == 0] = avg
-        H[H == 0] = avg
-    elif variant == "ar":
-        random_state = check_random_state(random_state)
-        avg = X.mean()
-        W[W == 0] = abs(avg * random_state.randn(len(W[W == 0])) / 100)
-        H[H == 0] = abs(avg * random_state.randn(len(H[H == 0])) / 100)
-
-    return W, H
-
-
-# graph normalized nmf
-def regularized_nmf(X, A, lambd=0, n_components=None, max_iter=100):
-
-        # still need to handle division by zero
-
-        # handle missing values by inserting mean value alongside columns
-        # needed for initialization
-        # imputer = Imputer()
-        # Xm = imputer.fit_transform(X)
+# graph regularized nmf
+def regularized_nmf(R, A, Wr, Hr, lambd=0.0, max_iter=100):
+        W = np.copy(Wr)
+        H = np.copy(Hr)
 
         # mask the nans
-        masked_X = np.ma.array(X, mask=np.isnan(X))
-        count = masked_X.count()
+        Rm = np.ma.array(R, mask=np.isnan(R))
+        count = Rm.count()
 
-        # Xm = check_array(Xm)
-        # check_non_negative(masked_X, "NMF.fit")
-        n_samples, n_features = X.shape
+        Rf = np.ma.filled(Rm, fill_value=0.0)
 
-        if not n_components:
-            n_components = min(n_samples, n_features)
-        else:
-            n_components = n_components
-
-        # W, H = NBS_init(Xm, n_components, init='nndsvd')
-
-        # random initialization works better
-        # we need to repeat multiple times and pick the best solution
-        # initialize P, Q with some random values
-        W = np.random.rand(n_samples, n_components)
-        H = np.random.rand(n_features, n_components)
-        H = H.T
-
-        rmses = []
-
+        # diagonal matrix of degrees
         D = np.diag(np.sum(A, axis=0))
 
-        # apply graph normalization
-        # A = np.dot(H.T, H) # adjacency matrix for laplacian
-        # D = np.matrix(np.diag(np.asarray(A).sum(axis=0)))  # degree matrix for laplacian
+        # book keeping
+        rmses = []
+        objectives = []
 
-        for n_iter in range(1, max_iter + 1):
-            # delta_h1 = lambd * np.dot(H, A) + np.dot(W.T, X / (np.dot(W, H)))
-            # delta_h2 = lambd * np.dot(H, D) + np.dot(W.T, np.ones(X.shape))
-            # H = np.multiply(H, delta_h1 / delta_h2)
+        eps = np.finfo(float).eps
 
-            # delta_w1 = np.dot(masked_X / (np.dot(W, H)), H.T)
-            # delta_w2 = np.dot(np.ones(masked_X.shape), H.T)
-            # W = np.multiply(W, delta_w1 / delta_w2)
-
-            RtW = lambd * np.dot(A, H.T) + np.ma.dot(masked_X.T, W)
+        for i in range(max_iter):
+            RtW = lambd * np.dot(A, H.T) + np.dot(Rf.T, W)
             HtWtW = lambd * np.dot(D, H.T) + np.dot(H.T, np.dot(W.T, W))
-            H = np.multiply(H, np.divide(RtW, HtWtW).T)
+            H = np.multiply(H, np.divide(RtW + eps, HtWtW + eps).T)
 
-            RHt = np.ma.dot(masked_X, H.T)
+            RHt = np.dot(Rf, H.T)
             WHHt = np.dot(W, np.dot(H, H.T))
-            W = np.multiply(W, np.divide(RHt, WHHt))
+            W = np.multiply(W, np.divide(RHt + eps, WHHt + eps))
 
-            # error = LA.norm(X - np.dot(W, H))
-
-            error = np.ma.dot(W, H) - masked_X
+            error = np.ma.dot(W, H) - Rm
             squared_error = np.sum(np.ma.diag(np.ma.dot(error.T, error)))
             rmse = math.sqrt(squared_error / count)
-
             rmses.append(rmse)
+            objectives.append(squared_error + lambd * np.sum(np.diag(np.dot(H, np.dot(D - A, H.T)))))
 
-        return W, H, rmses
+        return W, H, rmses, objectives
 
 
 # figure counter
@@ -224,79 +61,77 @@ def fcounter():
 
 # plot values vs. iteration steps
 def plot(values, ylabel, title):
-    plt.figure(next(fc))
+    fig = plt.figure(next(fc))
     plt.plot(range(len(values)), values)
     plt.xlabel("iteration")
     plt.ylabel(ylabel)
     plt.title(title)
+    fname = title.replace('$\lambda=$', 'lambda=')
+    plt.savefig('./images/' + fname + '.png')
+    plt.close(fig)
 
 
 # plot a heatmap
 def heatmap(values, title):
-    plt.figure(next(fc))
+    fig = plt.figure(next(fc))
     sns.heatmap(values, xticklabels=False, yticklabels=False)
     plt.title(title)
+    fname = title.replace('$\lambda=$', 'lambda=')
+    plt.savefig('./images/' + fname + '.png')
+    plt.close(fig)
 
 
-def results(R, W, H, rmse, plotting=False):
+def results(R, W, H, rmse, objective, plotting=False):
     print("W")
     print(W)
     print("H")
     print(H)
     print("reconstruction")
-    R_reconstructed = np.dot(W, H)
-    print(R_reconstructed)
+    Rr = np.dot(W, H)
+    print(Rr)
     print('R')
     print(R)
 
     print('embedded distances')
     print(pairwise_distances(H.T))
 
-    print ('rmse')
+    print('rmse')
     print(rmse)
     print('final rmse')
     print(rmse[-1])
 
-    if plotting:
-
-        #plot matrices
-        heatmap(R, 'R')
-        heatmap(R_reconstructed, 'Reconstructed R')
-        heatmap(W, 'W')
-        heatmap(H.T, 'H')
-
-        # plot rmse
-        plot(rmse, 'RMSE', 'RMSE')
+    print('objective')
+    print(objective)
+    print('final objective')
+    print(objective[-1])
 
 
-def ex0():
-    R = np.array([[5, 3, 0, 1],
-                  [4, 0, 0, 1],
-                  [1, 1, 0, 5],
-                  [1, 0, 0, 4],
-                  [0, 1, 5, 4]])
-
-    # exact division vector
-    S = [-1] * 2
-    S.extend([1] * 2)
-
-    # graph
-    A = np.outer(S, S)
-    A[A < 0] = 0
-    print(A)
-
-    W, H, rmse = regularized_nmf(R, A, lambd=0.1, n_components=2, max_iter=100)
-    results(R, W, H, rmse)
+def link_statistics(A):
+    m, m = A.shape
+    print('total number of links: ', np.sum(A))
+    g11 = np.sum(A[0:int(m / 2), 0:int(m / 2)])
+    g12 = np.sum(A[0:int(m / 2), int(m / 2):m])
+    g21 = np.sum(A[int(m / 2):m, 0:int(m / 2)])
+    g22 = np.sum(A[int(m / 2):m, int(m / 2):m])
+    print('links within groups: ', g11 + g22)
+    print('links between groups: ', g12 + g21)
+    print('fraction links between groups: ', (g12 + g21) / (g12 + g21 + g11 + g22))
 
 
 def ex1(plotting=False, verbose=True):
     n = 50
     m = 100
+    k = 5
     fraction = 0.1
 
     # generate random matrices
     WG, HtG, R = generate_rating_matrix(n=n, m=m)
     R = sample_ratings(R, fraction=fraction)
+
+    if plotting:
+        heatmap(R, 'R')
+        heatmap(WG, 'WG')
+        heatmap(HtG.T, 'HG')
 
     # print the generated matrices
     if verbose:
@@ -315,46 +150,58 @@ def ex1(plotting=False, verbose=True):
     s.extend([1] * int(m / 2))
 
     # similarity graph from the rating matrix
-    G1 = np.ma.dot(Rm.T, Rm)
+    G1 = np.ma.filled(np.ma.dot(Rm.T, Rm), fill_value=0.0)
 
     # distance graph from the rating matrix
-    G2 = 1 - G1
+    G2 = 1.0 - np.copy(G1)
+
+    # random initialization works better
+    # we initialize once to compare the results
+    Wr = np.random.rand(n, k)
+    Hr = np.random.rand(m, k)
+    Hr = Hr.T
 
     # fit -> higher lambda is stronger regularization
     for G in [G1, G2]:
-        for lambd in [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]:
-            W, H, rmse = regularized_nmf(R, G, lambd=lambd, n_components=100, max_iter=100)
+        for lambd in np.arange(0.0, 1.1, 0.1):
+            W, H, rmse, objective = regularized_nmf(R, G, Wr, Hr, lambd=lambd)
             print('regularization:', lambd)
             print('final rmse: ', rmse[-1])
+            print('final objective: ', objective[-1])
 
             # print results
             if verbose:
-                results(R, W, H, rmse, plotting=plotting)
+                results(R, W, H, rmse, objective, plotting=plotting)
                 print('max abs difference in W')
                 print(np.max(np.absolute((W - WG))))
                 print('max abs difference in H')
                 print(np.max(np.absolute((H.T - HtG))))
 
-            # normalize H to compare adjacency matrices with each other
-            length = np.sqrt(np.diag(np.dot(H.T, H)))
-            T = H / length
-            A = np.dot(T.T, T)
-            D = np.diag(np.sum(A, axis=0))
-            L = D - A
+            # construct A to compare adjacency matrices with each other
+            A = np.dot(H.T, H)
+            np.fill_diagonal(A, 0.0)
+            link_statistics(A)
 
             # print matrix and cut size
             if verbose:
                 print('A')
                 print(A)
-            print('cut size')
-            print(0.25 * np.dot(np.dot(s, L), s))
 
             if plotting:
-                heatmap(WG, 'WG')
-                heatmap(HtG, 'HtG')
-                heatmap(W - WG, 'Differences in W')
-                heatmap(H.T - HtG, 'Differences in H.T')
-                heatmap(A, 'adjacency')
+                if np.array_equal(G, G1):
+                    g = 'similarity'
+                else:
+                    g = 'distance'
+
+                # plot matrices
+                heatmap(np.dot(W, H), 'Reconstructed_R_%s_$\lambda=$%2.1f' % (g, lambd))
+                heatmap(W, 'W_%s_$\lambda=$%f' % (g, lambd))
+                heatmap(H.T, 'H_%s_$\lambda=$%f' % (g, lambd))
+
+                # plot rmse & objective
+                plot(rmse, 'RMSE', 'RMSE_%s_$\lambda=$%f' % (g, lambd))
+                plot(objective, 'Objective Function', 'Objective_Function_%s_$\lambda=$%2.1f' % (g, lambd))
+                heatmap(A, 'adjacency_%s_$\lambda=$%f' % (g, lambd))
 
             print('---------------------------')
         print('**********************************')
@@ -362,7 +209,7 @@ def ex1(plotting=False, verbose=True):
 
 if __name__ == '__main__':
 
-    plotting = False
+    plotting = True
     verbose = False
 
     # figure counter
@@ -370,6 +217,3 @@ if __name__ == '__main__':
 
     # run
     ex1(plotting=plotting, verbose=verbose)
-
-    if plotting:
-        plt.show()
