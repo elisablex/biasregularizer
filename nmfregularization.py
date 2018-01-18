@@ -11,6 +11,7 @@ import seaborn as sns
 
 from matrixgenerator import generate_rating_matrix
 from matrixgenerator import sample_ratings
+from networks import katz_similarity
 
 
 # graph regularized nmf
@@ -145,15 +146,24 @@ def ex1(plotting=False, verbose=True):
     length = np.sqrt(np.ma.diag(np.ma.dot(Rm.T, Rm)))
     Rm = Rm / length
 
-    # group vector for calculation of the cut size after factorization
-    s = [-1] * int(m / 2)
-    s.extend([1] * int(m / 2))
-
     # similarity graph from the rating matrix
     G1 = np.ma.filled(np.ma.dot(Rm.T, Rm), fill_value=0.0)
+    print(np.count_nonzero(G1))
 
-    # distance graph from the rating matrix
-    G2 = 1.0 - np.copy(G1)
+    # similarity graph with a base similarity
+    G2 = 0.01 + np.copy(G1)
+    print(np.count_nonzero(G2))
+
+    # rbf kernel applied to the similarity graph
+    sigma = np.std(G1)
+    print(sigma)
+    rbf = lambda x: math.exp(-x / sigma)
+    vrbf = np.vectorize(rbf)
+    G3 = vrbf(1.0 - np.copy(G1))
+    print(G3)
+
+    # regular similarity graph from the rating matrix
+    G4 = katz_similarity(np.copy(G1))
 
     # random initialization works better
     # we initialize once to compare the results
@@ -162,9 +172,11 @@ def ex1(plotting=False, verbose=True):
     Hr = Hr.T
 
     # fit -> higher lambda is stronger regularization
-    for G in [G1, G2]:
-        for lambd in np.arange(0.0, 1.1, 0.1):
+    i = 1
+    for G in [G1, G2, G3, G4]:
+        for lambd in np.arange(0.0, 21.0, 1.0):
             W, H, rmse, objective = regularized_nmf(R, G, Wr, Hr, lambd=lambd)
+            print('graph: ', i)
             print('regularization:', lambd)
             print('final rmse: ', rmse[-1])
             print('final objective: ', objective[-1])
@@ -188,22 +200,19 @@ def ex1(plotting=False, verbose=True):
                 print(A)
 
             if plotting:
-                if np.array_equal(G, G1):
-                    g = 'similarity'
-                else:
-                    g = 'distance'
-
                 # plot matrices
-                heatmap(np.dot(W, H), 'Reconstructed_R_%s_$\lambda=$%2.1f' % (g, lambd))
-                heatmap(W, 'W_%s_$\lambda=$%f' % (g, lambd))
-                heatmap(H.T, 'H_%s_$\lambda=$%f' % (g, lambd))
+                heatmap(np.dot(W, H), 'Reconstructed_R_%d_$\lambda=$%2.1f' % (i, lambd))
+                heatmap(W, 'W_%d_$\lambda=$%f' % (i, lambd))
+                heatmap(H.T, 'H_%d_$\lambda=$%f' % (i, lambd))
 
                 # plot rmse & objective
-                plot(rmse, 'RMSE', 'RMSE_%s_$\lambda=$%f' % (g, lambd))
-                plot(objective, 'Objective Function', 'Objective_Function_%s_$\lambda=$%2.1f' % (g, lambd))
-                heatmap(A, 'adjacency_%s_$\lambda=$%f' % (g, lambd))
+                plot(rmse, 'RMSE', 'RMSE_%d_$\lambda=$%f' % (i, lambd))
+                plot(objective, 'Objective Function', 'Objective_Function_%d_$\lambda=$%2.1f' % (i, lambd))
+                heatmap(A, 'adjacency_%d_$\lambda=$%f' % (i, lambd))
 
             print('---------------------------')
+
+        i = i + 1
         print('**********************************')
 
 
